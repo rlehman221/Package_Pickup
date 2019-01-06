@@ -1,0 +1,304 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
+# -*- EasyPost API Keys -*-
+PRODUCTION_KEY = 'qsoz0ZpTuGj0jGfdMHkmUA'
+TEST_KEY_1 = 'VAD0SDin6qeqTvUX2rF6ww'
+TEST_KEY_2 = '7VsH8ouwZbgKstv70cValA'
+
+# -*- Easypost USP and USPS account id -*-
+UPSMAIL = 'ca_5643f5ecff394951a5a0e8dd5febbabe'
+USPS = 'ca_843506a2a61e485e94c6dfdab3e817df'
+
+# from django.shortcuts import render
+import urllib
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import FacebookUser
+from .models import UserDetail
+from .serializers import FbUsersSerializers
+from django.http.response import HttpResponse
+from django.core.exceptions import ObjectDoesNotExist
+import time
+import datetime
+import easypost
+
+EASY_KEY = easypost.api_key = PRODUCTION_KEY
+
+
+# Save new Facebook users unique id
+# url --> http://34.212.2.126:8000/api/fbusers/{{messenger user id}}/
+class FacebookUserAPi(APIView):
+    def get(self, request, userId, first_name, last_name):
+
+        first_name = urllib.unquote_plus(first_name)
+        last_name = urllib.unquote_plus(last_name)
+        try:
+            fuser = FacebookUser.objects.get(fb_unique_id=userId)
+            return HttpResponse('')
+
+        except ObjectDoesNotExist:
+            ts = time.time()
+            st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+            SaveFacebookUsers = FacebookUser(fb_unique_id=userId, first_name=first_name, last_name=last_name,
+                                             created_date_time=st)
+            SaveFacebookUsers.save()
+            fuser = FacebookUser.objects.get(fb_unique_id=userId)
+            # serializer = FbUsersSerializers(fuser, many=True)
+
+            return HttpResponse('')
+
+
+# Get user details and save it
+class UserDetailsAPi(APIView):
+    def get(self, request, userId, to_first_name, to_last_name, to_mi, to_email_address, to_phone_number, to_ext,
+            to_company_name, to_street_address, to_app_suite_other, to_city, to_state, to_zipCode):
+
+        userId = urllib.unquote_plus(userId)
+        to_first_name = urllib.unquote_plus(to_first_name)
+        to_last_name = urllib.unquote_plus(to_last_name)
+        to_mi = urllib.unquote_plus(to_mi)
+        to_email_address = urllib.unquote_plus(to_email_address)
+        to_phone_number = urllib.unquote_plus(to_phone_number)
+        to_ext = urllib.unquote_plus(to_ext)
+        to_company_name = urllib.unquote_plus(to_company_name)
+        to_street_address = urllib.unquote_plus(to_street_address)
+        to_app_suite_other = urllib.unquote_plus(to_app_suite_other)
+        to_city = urllib.unquote_plus(to_city)
+        to_state = urllib.unquote_plus(to_state)
+        to_zipCode = urllib.unquote_plus(to_zipCode)
+
+        check_first = UserDetail.objects.get(fb_unique_id=userId)
+        if_first = check_first.is_first
+        if if_first == 0:
+            pass
+        else:
+            delete_user_id = UserDetail.objects.get(fb_unique_id=userId)
+            delete_user_id.delete()
+
+        try:
+            fuser = UserDetail.objects.get(fb_unique_id=userId)
+            return HttpResponse('{"messages": [ {"text": "TEST MODE -> user data already exists in the database!"}]}')
+
+        except ObjectDoesNotExist:
+            saveAddressData = UserDetail(fb_unique_id=userId, first_name=to_first_name,
+                                         last_name=to_last_name, MI=to_mi, email_address=to_email_address,
+                                         phone_number=to_phone_number,
+                                         ext=to_ext, company_name=to_company_name, street_address=to_street_address,
+                                         apt_suite_other=to_app_suite_other, city=to_city, state=to_state,
+                                         zip=to_zipCode,
+                                         is_business=1)
+
+        saveAddressData.save()
+        return HttpResponse('{"messages": [ {"text": " "}]}')
+
+
+# Check if User have previous data
+class CheckPrevDataAPi(APIView):
+    def get(self, request, userId):
+
+        try:
+            fuser = UserDetail.objects.get(fb_unique_id=userId)
+            # return HttpResponse(str(fuser))
+            UserDetail.objects.filter(fb_unique_id=userId).update(is_first=1)
+
+            return HttpResponse(
+                '{ "messages": [ { "text":  "{{ first name }} do you want to use your previous pickup information?", "quick_replies": [ { "title":"Yes", "block_names":["mail_main"] } , { "title":"No", "block_names":["PickupBusinessAddress"] } ] } ] }')
+
+        except ObjectDoesNotExist:
+
+            return HttpResponse('')
+
+
+# Delete Previous info from the UserDetail TABLE
+class DeleteUserInfo(APIView):
+    def get(self, request, userId):
+        delete_user_id = UserDetail.objects.get(fb_unique_id=userId)
+        delete_user_id.delete()
+        # data = UserDetail.objects.get(fb_unique_id=userId)
+        return HttpResponse('')
+
+
+# Make Loading Spinner
+class Loader(APIView):
+    @staticmethod
+    def get(request):
+        return HttpResponse(
+            '{ "messages": [  { "attachment": { "type": "image", "payload": { "url": "https://mir-s3-cdn-cf.behance.net/project_modules/disp/1f430a36197347.57135ca19bbf5.gif"} } } ] }')
+
+
+# Check Address Availability
+class CheckAddressAV(APIView):
+    def get(self, request, userId, to_first_name, to_last_name, to_mi, to_email_address, to_phone_number, to_ext,
+            to_company_name, to_street_address, to_app_suite_other, to_city, to_state, to_zipCode):
+
+        userId = urllib.unquote_plus(userId)
+        to_first_name = urllib.unquote_plus(to_first_name)
+        to_last_name = urllib.unquote_plus(to_last_name)
+        to_mi = urllib.unquote_plus(to_mi)
+        to_email_address = urllib.unquote_plus(to_email_address)
+        to_phone_number = urllib.unquote_plus(to_phone_number)
+        to_ext = urllib.unquote_plus(to_ext)
+        to_company_name = urllib.unquote_plus(to_company_name)
+        to_street_address = urllib.unquote_plus(to_street_address)
+        to_app_suite_other = urllib.unquote_plus(to_app_suite_other)
+        to_city = urllib.unquote_plus(to_city)
+        to_state = urllib.unquote_plus(to_state)
+        to_zipCode = urllib.unquote_plus(to_zipCode)
+
+        easy_api = EasyPostAPI()
+        rtr = easy_api.verify_and_create_address(to_first_name, to_last_name, to_street_address, to_city, to_state,
+                                                 to_zipCode,
+                                                 "US",
+                                                 to_phone_number)
+        if rtr == 'error':
+            return HttpResponse(
+                '{"messages": [ {"text": "you can try again but the information you have entered isn’t available for the address you have entered"}]}')
+        else:
+            return HttpResponse('{ "set_attributes": { "addressFound": "found", "step": "2" } }')
+
+
+# save Shipping and mail
+class ShippingMailAPi(APIView):
+    def get(self, request, tt, zz):
+        return HttpResponse(tt + '' + zz)
+
+
+# EasyPost APi Classes ***********************************************************
+class EasyPostAPI:
+    @staticmethod
+    def verify_and_create_address(first_name, last_name, street_address, city, state, zipcode, country, phone):
+
+        to_address = easypost.Address.create(
+            verify=["delivery"],
+            name=first_name + ' ' + last_name,
+            street1=street_address,
+            street2="",
+            city=city,
+            state=state,
+            zip=zipcode,
+            country=country,
+            phone=phone
+        )
+
+        if not to_address['verifications']['delivery']['errors']:
+            return to_address['id']  # 'ok'
+
+        else:
+            return 'error'
+
+    def create_pickup(address):
+        pickup = easypost.Pickup.create(
+            address=address,
+            # shipment=shipment,
+            reference="my-first-pickup",
+            min_datetime="2014-10-21 10:30:00",
+            max_datetime="2014-10-22 10:30:00",
+            is_account_address=False,
+            instructions="Special pickup instructions")
+
+        return pickup
+
+    def create_shipment(self):
+        pass
+
+    @staticmethod
+    def create_parcel():
+        parcel = easypost.Parcel.create(
+            length=20.2,
+            width=10.9,
+            height=5,
+            weight=65.9
+        )
+        return parcel
+
+
+# TEST CLASSES *******************************************************************
+
+class EasyPostTest(APIView):
+    @staticmethod
+    def get(request):
+        # easypost.api_key = 'VAD0SDin6qeqTvUX2rF6ww'
+        EP = EasyPostAPI()
+
+        try:
+            # rtr = EP.verify_and_create_address("Dr. Steve", "Brule", "179 N Harbor Dr", "Redondo Beach", "CA", "90277",
+            #                                    "US",
+            #                                    "310-808-5243")
+
+            address = easypost.Address.create(
+                street1="417 Montgomery Street",
+                street2="FLOOR 5",
+                city="San Francisco",
+                state="CA",
+                zip="94104",
+                country="US",
+                company="EasyPost",
+                phone="415-456-7890"
+            )
+
+            shipment = easypost.Shipment.create(
+                mode={'test'},
+                carrier_accounts=[{'id': 'ca_843506a2a61e485e94c6dfdab3e817df'}],
+                to_address={
+                    "name": 'Dr. Steve Brule',
+                    "street1": '179 N Harbor Dr',
+                    "city": 'Redondo Beach',
+                    "state": 'CA',
+                    "zip": '90277',
+                    "country": 'US',
+                    "phone": '4153334444',
+                    "email": 'dr_steve_brule@gmail.com'
+                },
+                from_address={
+                    "name": 'Dr. Steve Brule',
+                    "street1": '179 N Harbor Dr',
+                    "city": 'Redondo Beach',
+                    "state": 'CA',
+                    "zip": '90277',
+                    "country": 'US',
+                    "phone": '4153334444',
+                    "email": 'dr_steve_brule@gmail.com'
+                },
+                # from_address={
+                #     "name": 'EasyPost',
+                #     "street1": '417 Montgomery Street',
+                #     "street2": '5th Floor',
+                #     "city": 'San Francisco',
+                #     "state": 'CA', "zip": '94104',
+                #     "country": 'US', "phone": '4153334444',
+                #     "email": 'support@easypost.com'
+                # },
+                parcel={
+                    "length": 20.2,
+                    "width": 10.9,
+                    "height": 5,
+                    "weight": 65.9
+                }
+            )
+
+            batch = easypost.Batch.create(
+                shipments=[shipment]
+            );
+
+            # shipment.buy(rate=shipment.rates[0])
+            shipment.buy(rate=shipment.lowest_rate())
+
+            pickup = easypost.Pickup.create(
+                address=address,
+                shipment=shipment,
+                mode='test',
+                reference="my-first-pickup",
+                min_datetime="2017-07-28 10:30:00",
+                max_datetime="2017-07-29 10:30:00",
+                is_account_address=True,
+                instructions="Special pickup instructions"
+            )
+
+            return HttpResponse(pickup)
+
+        except easypost.Error as e:
+
+            return HttpResponse(e)
